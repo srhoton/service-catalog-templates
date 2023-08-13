@@ -1,0 +1,550 @@
+{
+  "Description": "AWS Service Management Connector for Atlassian's Jira Service Management Demo & IAM Setup",
+  "Outputs": {
+    "SCEndUserAccessKey": {
+      "Value": {
+        "Ref": "SCEndUserAccessKeys"
+      }
+    },
+    "SCEndUserSecretAccessKey": {
+      "Value": {
+        "Fn::GetAtt": ["SCEndUserAccessKeys", "SecretAccessKey"]
+      }
+    },
+    "SCSyncUserAccessKey": {
+      "Value": {
+        "Ref": "SCSyncUserAccessKeys"
+      }
+    },
+    "SCSyncUserSecretAccessKey": {
+      "Value": {
+        "Fn::GetAtt": ["SCSyncUserAccessKeys", "SecretAccessKey"]
+      }
+    }
+  },
+  "Parameters": {
+    "SecurityHubSQSName": {
+      "Default": "AwsSmcJsmCloudForgeSecurityHubQueue",
+      "Description": "This is the name of the SQS queue which the connector will use to pass Security hub findings to the ITSM connector.  This name must match the value in the ITSM tool connector settings. Do Not Change this unless you make corresponding changes in the ITSM application setup.",
+      "Type": "String"
+    }
+  },
+  "Resources": {
+    "AdminPortfolioPrincipalAssociation": {
+      "Properties": {
+        "AcceptLanguage": "en",
+        "PortfolioId": {
+          "Ref": "Portfolio"
+        },
+        "PrincipalARN": {
+          "Fn::GetAtt": ["SCEndUser", "Arn"]
+        },
+        "PrincipalType": "IAM"
+      },
+      "Type": "AWS::ServiceCatalog::PortfolioPrincipalAssociation"
+    },
+    "Portfolio": {
+      "Properties": {
+        "AcceptLanguage": "en",
+        "Description": "SMC Example Portfolio.",
+        "DisplayName": "SMC Example Portfolio",
+        "ProviderName": "AWS Service Management Connectors Team"
+      },
+      "Type": "AWS::ServiceCatalog::Portfolio"
+    },
+    "S3PortfolioProductAssociation": {
+      "Properties": {
+        "AcceptLanguage": "en",
+        "PortfolioId": {
+          "Ref": "Portfolio"
+        },
+        "ProductId": {
+          "Ref": "S3Product"
+        }
+      },
+      "Type": "AWS::ServiceCatalog::PortfolioProductAssociation"
+    },
+    "S3LaunchConstraint": {
+      "DependsOn": ["S3PortfolioProductAssociation"],
+      "Properties": {
+        "AcceptLanguage": "en",
+        "Description": "Launch role",
+        "PortfolioId": {
+          "Ref": "Portfolio"
+        },
+        "ProductId": {
+          "Ref": "S3Product"
+        },
+        "RoleArn": {
+          "Fn::GetAtt": ["SCConnectLaunchRole", "Arn"]
+        }
+      },
+      "Type": "AWS::ServiceCatalog::LaunchRoleConstraint"
+    },
+    "EC2PortfolioProductAssociation": {
+      "Properties": {
+        "AcceptLanguage": "en",
+        "PortfolioId": {
+          "Ref": "Portfolio"
+        },
+        "ProductId": {
+          "Ref": "WebserverProduct"
+        }
+      },
+      "Type": "AWS::ServiceCatalog::PortfolioProductAssociation"
+    },
+    "EC2LaunchConstraint": {
+      "DependsOn": ["EC2PortfolioProductAssociation"],
+      "Properties": {
+        "AcceptLanguage": "en",
+        "Description": "Launch role",
+        "PortfolioId": {
+          "Ref": "Portfolio"
+        },
+        "ProductId": {
+          "Ref": "WebserverProduct"
+        },
+        "RoleArn": {
+          "Fn::GetAtt": ["SCConnectLaunchRole", "Arn"]
+        }
+      },
+      "Type": "AWS::ServiceCatalog::LaunchRoleConstraint"
+    },
+    "WebserverProduct": {
+      "Type": "AWS::ServiceCatalog::CloudFormationProduct",
+      "Properties": {
+        "Name": "Demo NGINX Webserver",
+        "Description": "This product builds a NGINX webserver EC2 instance.",
+        "Owner": "AWS SMC Team",
+        "Distributor": "AWS SMC Team",
+        "SupportDescription": "This is a sample webserver for SMC.",
+        "SupportEmail": "aws-servicemanagement-connector@amazon.com",
+        "AcceptLanguage": "en",
+        "SupportUrl": "https://docs.aws.amazon.com/servicecatalog/latest/adminguide/integrations-servicenow.html",
+        "ProvisioningArtifactParameters": [
+          {
+            "Description": "NGINX webserver",
+            "Info": {
+              "LoadTemplateFromURL": "https://raw.githubusercontent.com/aws-samples/aws-service-catalog-reference-architectures/master/ec2/sc-ec2-linux-nginx-nokey.json"
+            },
+            "Name": "NGINX v1.0"
+          }
+        ]
+      }
+    },
+    "S3Product": {
+      "Type": "AWS::ServiceCatalog::CloudFormationProduct",
+      "Properties": {
+        "AcceptLanguage": "en",
+        "Name": "Simple S3 Private Bucket",
+        "Description": "This product builds an Amazon AWS S3 bucket with private ACL.",
+        "Distributor": "AWS SMC Team",
+        "Owner": "AWS SMC Team",
+        "SupportDescription": "This is a sample S3 product for SMC.",
+        "SupportEmail": "aws-servicemanagement-connector@amazon.com",
+        "SupportUrl": "https://docs.aws.amazon.com/servicecatalog/latest/adminguide/integrations-servicenow.html",
+        "ProvisioningArtifactParameters": [
+          {
+            "Description": "baseline version",
+            "Info": {
+              "LoadTemplateFromURL": "https://raw.githubusercontent.com/aws-samples/aws-service-catalog-reference-architectures/master/s3/sc-s3-simple-ra.json"
+            },
+            "Name": "v1.0"
+          }
+        ]
+      }
+    },
+    "SCConnectLaunchRole": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": ["sts:AssumeRole"],
+              "Effect": "Allow",
+              "Principal": {
+                "Service": ["servicecatalog.amazonaws.com"]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/AmazonEC2FullAccess",
+          "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+        ],
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "cloudformation:DescribeStackResource",
+                    "cloudformation:DescribeStackResources",
+                    "cloudformation:GetTemplate",
+                    "cloudformation:List*",
+                    "cloudformation:DescribeStackEvents",
+                    "cloudformation:DescribeStacks",
+                    "cloudformation:CreateStack",
+                    "cloudformation:DeleteStack",
+                    "cloudformation:GetTemplateSummary",
+                    "cloudformation:SetStackPolicy",
+                    "cloudformation:ValidateTemplate",
+                    "cloudformation:UpdateStack",
+                    "cloudformation:CreateChangeSet",
+                    "cloudformation:DescribeChangeSet",
+                    "cloudformation:ExecuteChangeSet",
+                    "cloudformation:DeleteChangeSet",
+                    "s3:GetObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*"
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "AWSCloudFormationFullAccess"
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "servicecatalog:AssociateResource",
+                    "servicecatalog:DisassociateResource",
+                    "servicecatalog:ListServiceActionsForProvisioningArtifact",
+                    "servicecatalog:ExecuteprovisionedProductServiceAction",
+                    "ssm:DescribeDocument",
+                    "ssm:GetAutomationExecution",
+                    "ssm:StartAutomationExecution",
+                    "ssm:StopAutomationExecution",
+                    "ssm:GetParameters"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*",
+                  "Sid": "ServiceCatalogAdditionalActions"
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "ServiceCatalogAdditionalActions"
+          }
+        ],
+        "RoleName": "SCConnectLaunchRole"
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "SQSPolicy": {
+      "Type": "AWS::SQS::QueuePolicy",
+      "Properties": {
+        "Queues": [
+          {
+            "Ref": "AwsSmcJsmCloudForgeSecurityHubQueue"
+          }
+        ],
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "SQS:SendMessage",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": ["AwsSmcJsmCloudForgeSecurityHubQueue", "Arn"]
+              },
+              "Principal": {
+                "Service": "events.amazonaws.com"
+              },
+              "Condition": {
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Fn::GetAtt": ["RuleLifeCycleEvents", "Arn"]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "AwsSmcJsmCloudForgeSecurityHubQueue": {
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Ref": "EventBridgeSqsQueueKey"
+        },
+        "QueueName": {
+          "Ref": "SecurityHubSQSName"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Ref": "SecurityHubSQSName"
+            }
+          }
+        ]
+      },
+      "Type": "AWS::SQS::Queue"
+    },
+    "RuleLifeCycleEvents": {
+      "Properties": {
+        "Description": "Send Security Hub imported findings to the AwsSmcJsmCloudForgeSecurityHubQueue SQS.",
+        "EventPattern": {
+          "detail-type": ["Security Hub Findings - Imported"],
+          "source": ["aws.securityhub"]
+        },
+        "Targets": [
+          {
+            "Arn": {
+              "Fn::Sub": "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:AwsSmcJsmCloudForgeSecurityHubQueue"
+            },
+            "Id": "IDRuleLifeCycleEventsJSD"
+          }
+        ]
+      },
+      "Type": "AWS::Events::Rule"
+    },
+    "SCEndUser": {
+      "Properties": {
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess",
+          "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess",
+          "arn:aws:iam::aws:policy/AWSConfigUserAccess",
+          "arn:aws:iam::aws:policy/AWSServiceCatalogEndUserFullAccess",
+          "arn:aws:iam::aws:policy/service-role/AWS_ConfigRole",
+          "arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole"
+        ],
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "ssm:CreateOpsItem",
+                    "ssm:GetOpsItem",
+                    "ssm:UpdateOpsItem",
+                    "ssm:DescribeOpsItems"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*",
+                  "Sid": "OpsCenterExecutionPolicy"
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "OpsCenterExecutionPolicy"
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "ssm:DescribeAutomationExecutions",
+                    "ssm:DescribeDocument",
+                    "ssm:StartAutomationExecution",
+                    "ssm:StartChangeRequestExecution"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*",
+                  "Sid": "SSMExecutionPolicySID"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "iam:PassRole",
+                  "Resource": "*",
+                  "Condition": {
+                    "StringEquals": {
+                      "iam:PassedToService": "ssm.amazonaws.com"
+                    }
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "SSMExecutionPolicy"
+          }
+        ],
+        "UserName": "SCEndUser"
+      },
+      "Type": "AWS::IAM::User"
+    },
+    "SCEndUserAccessKeys": {
+      "DependsOn": "SCEndUser",
+      "Properties": {
+        "Status": "Active",
+        "UserName": "SCEndUser"
+      },
+      "Type": "AWS::IAM::AccessKey"
+    },
+    "SCSyncUser": {
+      "Properties": {
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/AWSServiceCatalogAdminReadOnlyAccess",
+          "arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess",
+          "arn:aws:iam::aws:policy/service-role/AWS_ConfigRole",
+          "arn:aws:iam::aws:policy/AWSConfigUserAccess",
+          "arn:aws:iam::aws:policy/AWSSupportAccess"
+        ],
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "ssm:CreateOpsItem",
+                    "ssm:GetOpsItem",
+                    "ssm:UpdateOpsItem",
+                    "ssm:DescribeOpsItems"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*"
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "SSMOpsItemActionPolicy"
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "ssm-incidents:ListIncidentRecords",
+                    "ssm-incidents:GetIncidentRecord",
+                    "ssm-incidents:UpdateRelatedItems",
+                    "ssm-incidents:ListTimelineEvents",
+                    "ssm-incidents:GetTimelineEvent",
+                    "ssm-incidents:UpdateIncidentRecord",
+                    "ssm:ListOpsItemRelatedItems",
+                    "ssm-incidents:ListRelatedItems"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*"
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "AWSIncidentBaselineAccessPolicy"
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": ["budgets:ViewBudget"],
+                  "Effect": "Allow",
+                  "Resource": "*"
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "SSMActionPolicy"
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "cloudformation:RegisterType",
+                    "cloudformation:DescribeTypeRegistration",
+                    "cloudformation:DeregisterType",
+                    "config:PutResourceConfig"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": "*",
+                  "Sid": "ConfigBiDirectionalPolicySID"
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "ConfigBiDirectionalPolicy"
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": ["sqs:ReceiveMessage", "sqs:DeleteMessage"],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": [
+                        "AwsSmcJsmCloudForgeSecurityHubQueue",
+                        "Arn"
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "Action": ["securityhub:BatchUpdateFindings"],
+                  "Effect": "Allow",
+                  "Resource": "*"
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "ConfigBidirectionalSecurityHubSQSBaseline"
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "kms:DescribeKey",
+                    "kms:GenerateDataKey",
+                    "kms:Decrypt"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": ["EventBridgeSqsQueueKey", "Arn"]
+                    }
+                  ]
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "SyncUserKMSKeyAccess"
+          }
+        ],
+        "UserName": "SCSyncUser"
+      },
+      "Type": "AWS::IAM::User"
+    },
+    "SCSyncUserAccessKeys": {
+      "DependsOn": "SCSyncUser",
+      "Properties": {
+        "Status": "Active",
+        "UserName": "SCSyncUser"
+      },
+      "Type": "AWS::IAM::AccessKey"
+    },
+    "EventBridgeSqsQueueKey": {
+      "Type": "AWS::KMS::Key",
+      "Properties": {
+        "Description": "KMS key for EventBrige to SQS",
+        "KeyPolicy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "Enable IAM User Permissions",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:root"
+                }
+              },
+              "Action": "kms:*",
+              "Resource": "*"
+            },
+            {
+              "Sid": "AllowEventBridgeUseOfKey",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "events.amazonaws.com"
+              },
+              "Action": ["kms:Decrypt", "kms:GenerateDataKey"],
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
