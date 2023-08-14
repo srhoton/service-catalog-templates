@@ -52,6 +52,11 @@ resource "aws_servicecatalog_portfolio" "portfolio" {
   provider_name = "HashiCorp Examples"
 }
 
+resource "aws_servicecatalog_portfolio" "s3_github_portfolio" {
+  name          = "TFC S3 and GitHub Portfolio"
+  description   = "Example Portfolio created via TFC that deploys and S3 bucket and GitHub repo"
+  provider_name = "HashiCorp Examples"
+}
 # An example product
 module "example_product" {
   source = "./example-product"
@@ -62,6 +67,23 @@ module "example_product" {
 
   # AWS Service Catalog portfolio you would like to add this product to
   service_catalog_portfolio_ids = [aws_servicecatalog_portfolio.portfolio.id]
+
+  # Variables for authentication to AWS via Dynamic Credentials
+  tfc_hostname     = module.terraform_cloud_reference_engine.tfc_hostname
+  tfc_organization = module.terraform_cloud_reference_engine.tfc_organization
+  tfc_provider_arn = module.terraform_cloud_reference_engine.oidc_provider_arn
+
+}
+
+module "s3_githubexample_product" {
+  source = "./s3-github"
+
+  # ARNs of Lambda functions that need to be able to assume the IAM Launch Role
+  parameter_parser_role_arn  = module.terraform_cloud_reference_engine.parameter_parser_role_arn
+  send_apply_lambda_role_arn = module.terraform_cloud_reference_engine.send_apply_lambda_role_arn
+
+  # AWS Service Catalog portfolio you would like to add this product to
+  service_catalog_portfolio_ids = [aws_servicecatalog_portfolio.s3_github_portfolio.id]
 
   # Variables for authentication to AWS via Dynamic Credentials
   tfc_hostname     = module.terraform_cloud_reference_engine.tfc_hostname
